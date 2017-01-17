@@ -1,0 +1,30 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DESIGN DOCUMENT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+DESCRIPTION
+Two player coop puzzle game. Only one player can move at any one time - think about netball.
+Player one can move but player two cannot. He then presses a button that passes the 'ball' to player two.
+Player one is then frozen in place unable to move. He then begins spectating the other player to assist.
+Players must work together and communicate either via an external VOIP or messaging program, or using in-game messages.
+
+
+GAMEPLAY
+2D side facing platformer game. Mario-esque physics.
+Simple WASD controls with E or Space for activating switches/levers/whatever.
+Q or E can swap the ability to move to the other player.
+
+
+PUZZLES
+Switches and levers that can open or close doors to open passages.
+Close a door to stop an enemy chasing you (time pressured).
+Push a button to spring the other player into the air.
+
+
+DESIGN
+Two inanimate objects (from a forest or something?) are infused with a magical power.
+Power only strong enough to keep one animate at any one time.
+The power/life force has to swap between the two (potential for pretty particle effects showing this).
+Power needs to reach a final destination (perhaps a special place in the forest?)
+
+

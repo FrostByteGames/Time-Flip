@@ -6,6 +6,7 @@ public class PlayerController : MonoBehaviour {
 	public ControlHandler.Player playerNumber;
 
 	public float moveSpeed = 5f;
+	public float pushSpeed = 2f;
 	public float jumpForce = 2f;
 	public Transform groundCheck;
 	public float groundCheckRadius = 0.3f;
@@ -18,6 +19,8 @@ public class PlayerController : MonoBehaviour {
 	bool grounded = false;
 	bool doubleJumped = false;
 	float horizontalDragFactor = 0.75f;
+	RaycastHit2D hitLeft;
+	RaycastHit2D hitRight;
 
 	private NetworkPlayer networkPlayer;
 	private ControlHandler controlHandler;
@@ -91,11 +94,17 @@ public class PlayerController : MonoBehaviour {
 			if (Input.GetAxis ("Horizontal") > 0) {     //(Input.GetKey (KeyCode.D))
 				transform.localScale = new Vector3 (1f, 1f, 1f);
 
-				RaycastHit2D hitRight = Physics2D.Raycast (transform.position, Vector2.right, 1.05f, whatIsGround.value);
+				hitRight = Physics2D.Raycast (transform.position, Vector2.right, 1.05f, whatIsGround.value);
 				Debug.DrawLine (transform.position, transform.position + (Vector3.right * 1.05f), Color.red);
 				if (hitRight.collider != null) {
-					// If we are going to walk into a wall then stop moving
-					rbody.velocity = new Vector2 (0f, rbody.velocity.y);
+					if (hitRight.transform.tag == "Pushable") {
+
+						// DO PUSHING STUFF HERE
+
+					} else {
+						// We are going to walk into a wall, so stop moving
+						rbody.velocity = new Vector2 (0f, rbody.velocity.y);
+					}
 				} else {
 					// If not then we can move this way
 					rbody.velocity = new Vector2 (moveSpeed, rbody.velocity.y);
@@ -106,11 +115,17 @@ public class PlayerController : MonoBehaviour {
 			if (Input.GetAxis ("Horizontal") < 0) {     //(Input.GetKey (KeyCode.A))
 				transform.localScale = new Vector3 (-1f, 1f, 1f);
 
-				RaycastHit2D hitLeft = Physics2D.Raycast (transform.position, Vector2.left, 1.05f, whatIsGround.value);
+				hitLeft = Physics2D.Raycast (transform.position, Vector2.left, 1.05f, whatIsGround.value);
 				Debug.DrawLine (transform.position, transform.position + (Vector3.left * 1.05f), Color.red);
 				if (hitLeft.collider != null) {
-					// If we are going to walk into a wall then stop moving
-					rbody.velocity = new Vector2 (0f, rbody.velocity.y);
+					if (hitLeft.transform.tag == "Pushable") {
+
+						// DO PUSHING STUFF HERE
+
+					} else {
+						// We are going to walk into a wall, so stop moving
+						rbody.velocity = new Vector2 (0f, rbody.velocity.y);
+					}
 				} else {
 					// If not then we can move this way
 					rbody.velocity = new Vector2 (-moveSpeed, rbody.velocity.y);

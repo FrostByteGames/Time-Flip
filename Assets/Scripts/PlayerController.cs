@@ -5,12 +5,17 @@ public class PlayerController : MonoBehaviour {
 
 	public ControlHandler.Player playerNumber;
 
-	public float moveSpeed = 5f;
-	public float pushSpeed = 2f;
-	public float jumpForce = 2f;
-	public Transform groundCheck;
-	public float groundCheckRadius = 0.3f;
-	public LayerMask whatIsGround;
+	public float moveSpeed = 4f;
+	public float defaultPushSpeed = 1f;
+	private float pushSpeed;
+	public float jumpForce = 3f;
+	public bool canDoubleJump = false;
+	public float raycastDistance = 1.1f;
+
+	private Transform groundCheck;
+	private float groundCheckRadius = 0.3f;
+	private LayerMask whatIsGround;
+	private Vector3 raycastOffset = new Vector3 (0f, -0.2f);
 
 	Rigidbody2D rbody;
 	Animator anim;
@@ -18,13 +23,14 @@ public class PlayerController : MonoBehaviour {
 	bool jumpKeyReleased;
 	bool grounded = false;
 	bool doubleJumped = false;
+	[Tooltip ("Lower values mean more drag (speed is slowed at a faster rate). Valid values are between 0 and 1.")]
 	float horizontalDragFactor = 0.75f;
 	RaycastHit2D hitLeft;
 	RaycastHit2D hitRight;
 
 	private NetworkPlayer networkPlayer;
 	private ControlHandler controlHandler;
-	public PhotonView photonView;
+	private PhotonView photonView;
 	private GameController gameController;
 
     public GameObject closestButton;
@@ -66,12 +72,16 @@ public class PlayerController : MonoBehaviour {
 		if (LayerMask.LayerToName(whatIsGround) != "Ground") {
 			whatIsGround = LayerMask.GetMask("Ground");
 		}
+
+		pushSpeed = defaultPushSpeed;
 	}
 
 
 	void FixedUpdate () {
 
 		if (HasControl ()) {
+
+			// JUMPING CODE
 
 			if (Input.GetKey (KeyCode.W) || Input.GetKey (KeyCode.Space)) {    //(Input.GetAxis ("Jump") != 0)
 				if (jumpKeyReleased == true) {
@@ -80,7 +90,7 @@ public class PlayerController : MonoBehaviour {
 					if (grounded) {
 						rbody.velocity = new Vector2 (rbody.velocity.x, jumpForce);
 						anim.SetTrigger ("jump");
-					} else if (!doubleJumped) {
+					} else if (!doubleJumped && canDoubleJump) {
 						doubleJumped = true;
 						rbody.velocity = new Vector2 (rbody.velocity.x, jumpForce);
 						anim.SetTrigger ("jump");
@@ -89,18 +99,23 @@ public class PlayerController : MonoBehaviour {
 			} else if (jumpKeyReleased == false) {
 				jumpKeyReleased = true;
 			}
+			
 
+
+			// MOVEMENT & PUSHING CODE
 
 			if (Input.GetAxis ("Horizontal") > 0) {     //(Input.GetKey (KeyCode.D))
 				transform.localScale = new Vector3 (1f, 1f, 1f);
 
-				hitRight = Physics2D.Raycast (transform.position, Vector2.right, 1.05f, whatIsGround.value);
-				Debug.DrawLine (transform.position, transform.position + (Vector3.right * 1.05f), Color.red);
-				if (hitRight.collider != null) {
+				hitRight = Physics2D.Raycast (transform.position + raycastOffset, Vector2.right, raycastDistance, whatIsGround.value);
+				Debug.DrawLine (transform.position + raycastOffset, transform.position + raycastOffset + (Vector3.right * raycastDistance), Color.red);
+				if (hitRight && hitRight.collider != null) {
 					if (hitRight.transform.tag == "Pushable") {
-
-						// DO PUSHING STUFF HERE
-
+						pushSpeed = hitRight.transform.GetComponent<PushableObject> ().pushSpeed;		// Use the object's specific push speed
+						rbody.velocity = new Vector2 (pushSpeed, rbody.velocity.y);
+						hitRight.transform.GetComponent<PushableObject> ().PushRight ();                 // Move the pushable object
+						//hitRight.transform.GetComponent<Rigidbody2D> ().velocity = new Vector2 (pushSpeed, hitRight.transform.GetComponent<Rigidbody2D> ().velocity.y);
+						anim.SetBool ("pushing", true);
 					} else {
 						// We are going to walk into a wall, so stop moving
 						rbody.velocity = new Vector2 (0f, rbody.velocity.y);
@@ -111,17 +126,17 @@ public class PlayerController : MonoBehaviour {
 				}
 			}
 
-
 			if (Input.GetAxis ("Horizontal") < 0) {     //(Input.GetKey (KeyCode.A))
 				transform.localScale = new Vector3 (-1f, 1f, 1f);
 
-				hitLeft = Physics2D.Raycast (transform.position, Vector2.left, 1.05f, whatIsGround.value);
-				Debug.DrawLine (transform.position, transform.position + (Vector3.left * 1.05f), Color.red);
-				if (hitLeft.collider != null) {
+				hitLeft = Physics2D.Raycast (transform.position + raycastOffset, Vector2.left, raycastDistance, whatIsGround.value);
+				Debug.DrawLine (transform.position + raycastOffset, transform.position + raycastOffset + (Vector3.left * raycastDistance), Color.red);
+				if (hitLeft && hitLeft.transform != null) {
 					if (hitLeft.transform.tag == "Pushable") {
-
-						// DO PUSHING STUFF HERE
-
+						pushSpeed = hitLeft.transform.GetComponent<PushableObject> ().pushSpeed;		// Use the object's specific push speed
+						rbody.velocity = new Vector2 (-pushSpeed, rbody.velocity.y);					// Move this player object
+						hitLeft.transform.GetComponent<PushableObject> ().PushLeft ();					// Move the pushable object
+						anim.SetBool ("pushing", true);													// Animate!
 					} else {
 						// We are going to walk into a wall, so stop moving
 						rbody.velocity = new Vector2 (0f, rbody.velocity.y);
@@ -138,6 +153,8 @@ public class PlayerController : MonoBehaviour {
 
 
 		if (Input.GetAxis ("Horizontal") == 0) {
+			anim.SetBool ("pushing", false);
+
 			rbody.velocity = new Vector2 (rbody.velocity.x * horizontalDragFactor, rbody.velocity.y); //replace the x velocity with a reducing function
 
 			if (Mathf.Approximately (rbody.velocity.x, 0f)) {
@@ -173,9 +190,9 @@ public class PlayerController : MonoBehaviour {
 		if (Input.GetKeyDown (KeyCode.Escape)) {
 			
 			if (controlHandler.isPaused) {
-				controlHandler.photonView.RPC("UnpauseControl", PhotonTargets.All);
+				controlHandler.UnpauseControl ();
 			} else {
-				controlHandler.photonView.RPC ("PauseControl", PhotonTargets.All, true);
+				controlHandler.PauseControl (true);
 			}
 		}
 
@@ -193,12 +210,23 @@ public class PlayerController : MonoBehaviour {
 
 
 	public bool HasControl () {
-		if ((PhotonNetwork.isMasterClient && controlHandler.inControl == ControlHandler.Player.One)
-			|| (!PhotonNetwork.isMasterClient && controlHandler.inControl == ControlHandler.Player.Two)) {
-			return true;
+		//if (gameController.singleplayer == true) {
+			if (controlHandler.inControl == playerNumber) {
+				return true;
+			} else {
+				return false;
+			}
+		/*} else if (gameController.singleplayer == false) {
+			if ((PhotonNetwork.isMasterClient && controlHandler.inControl == ControlHandler.Player.One)
+				|| (!PhotonNetwork.isMasterClient && controlHandler.inControl == ControlHandler.Player.Two)) {
+				return true;
+			} else {
+				return false;
+			}
 		} else {
+			Debug.LogError ("GameController 'singleplayer' was not set - cannot determine if this player HasControl()...");
 			return false;
-		}
+		}*/
 	}
 
 

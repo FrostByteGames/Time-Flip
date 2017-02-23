@@ -12,9 +12,9 @@ public class GameController : PunBehaviour {
 	private MenuController menuController;
 	private ControlHandler controlHandler;
 	private PhotonNetworkHandler photonNetworkHandler;
-
-	public GameObject player { get; private set; }
-	public GameObject otherPlayer { get; private set; }
+	
+	public GameObject player { get; private set; }			// For multiplayer, 'player' will be the local player and 'otherPlayer' will be the other player.
+	public GameObject otherPlayer { get; private set; }		// For singleplayer/local co-op, 'player' will be player 1 and 'otherPlayer' will be player 2.
 
 
 	// LEVEL SETTINGS
@@ -29,8 +29,7 @@ public class GameController : PunBehaviour {
 	public string player1SteamID;
 	public string player2SteamID;
 	public PhotonPlayer otherPhotonPlayer;
-
-
+	
 	// Status of the level load so we know when to set up the level
 	public enum LoadStatus {
 		NULL,
@@ -45,7 +44,6 @@ public class GameController : PunBehaviour {
 	private Text fpsText;
 	private int frames = 0;
 	public bool updateFPS = true;
-
 
 	// Level specific variables
 	private Transform spawnPoints;
@@ -108,16 +106,63 @@ public class GameController : PunBehaviour {
 
 
 	public void SteamOverlayActivated () {
-		controlHandler.photonView.RPC ("PauseControl", PhotonTargets.All, true);
+		controlHandler.PauseControl (true);
 	}
 
 
-	public void SetupLevel_Singleplayer (string levelname) {
-		// In this case we have to do everything.
-		// We load the level, spawn both player prefabs and set them up ready to play.
+	public void SetupLevel_Singleplayer () {
+		// Set up spawn locations (which will default to (0, 0) if it can't find anywhere)
+		Vector3 p1spawn = new Vector3 (0f, 0f);
+		Vector3 p2spawn = new Vector3 (0f, 0f);
+		spawnPoints = GameObject.Find ("Spawn Points").transform;
+		if (!spawnPoints) {
+			Debug.LogError ("Could not find the 'Spawn Points' GameObject, so cannot spawn the players in their correct positions!");
+		} else {
+			p1spawn = spawnPoints.FindChild ("Player 1").position;
+			p2spawn = spawnPoints.FindChild ("Player 2").position;
+		}
+		
+		//Spawn players
+		Debug.Log ("Spawning player Game Objects...");
+		player = Instantiate ((GameObject)Resources.Load ("player"), p1spawn, Quaternion.identity);
+		otherPlayer = Instantiate ((GameObject)Resources.Load ("player"), p2spawn, Quaternion.identity);
 
+		// Initialise player objects for local play
+		player.name = "Player 1";
+		player.GetComponent<PlayerController> ().enabled = true;
+		player.GetComponent<Rigidbody2D> ().isKinematic = false;
+		player.GetComponent<CircleCollider2D> ().enabled = true;
+		player.GetComponent<PlayerController> ().playerNumber = ControlHandler.Player.One;
+		player.GetComponent<PhotonView> ().enabled = false;
+		otherPlayer.name = "Player 2";
+		otherPlayer.GetComponent<PlayerController> ().enabled = true;
+		otherPlayer.GetComponent<Rigidbody2D> ().isKinematic = false;
+		otherPlayer.GetComponent<CircleCollider2D> ().enabled = true;
+		otherPlayer.GetComponent<PlayerController> ().playerNumber = ControlHandler.Player.Two;
+		otherPlayer.GetComponent<PhotonView> ().enabled = false;
+		
+		// Cache player objects on the Control Handler
+		controlHandler.player1 = player;
+		controlHandler.player2 = otherPlayer;
+		
 
+		// From this point on is a modified ConfigureLocalPlayerAndStartGame() for singleplayer local play
+		camera = GameObject.Find ("Main Camera");
+		if (!camera) {
+			Debug.Log ("Could not find 'Main Camera' in the scene! Game will probably not work so well without a camera...");
+		}
 
+		controlHandler.localPlayerNumber = ControlHandler.Player.None;
+		controlHandler.singleplayer = true;
+
+		camera.transform.position = new Vector3 (player.transform.position.x, player.transform.position.y - camera.GetComponent<CameraController> ().offset.y, camera.transform.position.z);
+		camera.GetComponent<CameraController> ().target = player.transform;
+		//camera.GetComponent<CameraController> ().SetEffects (false);
+		
+		// Start the game!
+		waitingCanvasObject.SetActive (false);
+		controlHandler.inControlText = GameObject.Find ("In Control Text").GetComponent<Text> ();
+		controlHandler.UnpauseControl ();		// THIS LINE WON'T WORK UNTIL THE CONTROL HANDLER IS TWEAKED TO HANDLE LOCAL PLAY AS WELL AS AND ONLINE PLAYER
 	}
 
 
@@ -139,13 +184,16 @@ public class GameController : PunBehaviour {
 		otherPlayer.GetComponent<PhotonView> ().viewID = 002;
 
 		// Cache player objects
+		Debug.Log ("Calling RPC CachePlayerObjects on AllBuffered...");
 		controlHandler.photonView.RPC ("CachePlayerObjects", PhotonTargets.AllBuffered);
 
+		Debug.Log ("Giving clients ownership of their players...");
 		PhotonView player1view = player.GetPhotonView ();
 		PhotonView player2view = otherPlayer.GetPhotonView ();
 		player1view.TransferOwnership (PhotonNetwork.player.ID);
 		player2view.TransferOwnership (otherPhotonPlayer.ID);
 
+		Debug.Log ("Calling RPC ConfigerLocalPlayerAndStartGame on All...");
 		photonView.RPC ("ConfigureLocalPlayerAndStartGame", PhotonTargets.All);
 	}
 
@@ -164,8 +212,8 @@ public class GameController : PunBehaviour {
 			Debug.Log ("Could not find 'Main Camera' in the scene! Game will probably not work so well without a camera...");
 		}
 
-		controlHandler.localPlayerNumber = (ControlHandler.Player)((int)localPlayerNumber);
-		Debug.Log ("controlHandler.localPlayerNumber set to ControlHandler.Player." + ((ControlHandler.Player)((int)localPlayerNumber)).ToString ());
+		controlHandler.localPlayerNumber = (ControlHandler.Player)localPlayerViewID;
+		Debug.Log ("controlHandler.localPlayerNumber set to ControlHandler.Player." + ((ControlHandler.Player)localPlayerViewID).ToString ());
 
 		if (PhotonNetwork.isMasterClient) {
 			Debug.Log ("ConfigureLocalPlayerAndStartGame() called as player 1...");
@@ -195,21 +243,21 @@ public class GameController : PunBehaviour {
 		localPlayerView.gameObject.name = "Player " + localPlayerViewID.ToString();
 		localPlayerView.GetComponent<PlayerController> ().enabled = true;
 		localPlayerView.GetComponent<Rigidbody2D> ().isKinematic = false;
-		localPlayerView.GetComponent<BoxCollider2D> ().enabled = true;
+		localPlayerView.GetComponent<CircleCollider2D> ().enabled = true;
 
 
 		// OTHER PLAYER THAT WE DON'T CONTROL
 		otherPlayerView.gameObject.name = "Player " + otherPlayerViewID.ToString ();
 		otherPlayerView.GetComponent<PlayerController> ().enabled = false;
 		otherPlayerView.GetComponent<Rigidbody2D> ().isKinematic = true;
-		otherPlayerView.GetComponent<BoxCollider2D> ().enabled = false;
+		otherPlayerView.GetComponent<CircleCollider2D> ().enabled = false;
 		
 
 		// Start the game!
 		waitingCanvasObject.SetActive (false);
 		controlHandler.inControlText = GameObject.Find ("In Control Text").GetComponent<Text> ();
-		controlHandler.UnpauseControl ();
-		controlHandler.SetControl (ControlHandler.Player.One);
+		controlHandler.UnpauseControlLocal ();		// We call UnpauseControl instead of (?) SetControl because UnpauseControl will find and hide the pause menu simultaneously - 2 birds with 1 stone. :) We specify the Local variant here because this code is already being called on both clients so we don't want the RPC version (which would happen if we just called UnpauseControl(); )
+		//controlHandler.SetControl (ControlHandler.Player.One);		// Not necessary because of the UnpauseControl in the line above which which will set player 1 in control if no one was in control before the pause event.
 	}
 
 
@@ -276,8 +324,25 @@ public class GameController : PunBehaviour {
 
 			// If our load status is AWAITING_LOAD then we were actually supposed to be loading something
 			if (loadStatusP1 == LoadStatus.AWAITING_LOAD || loadStatusP2 == LoadStatus.AWAITING_LOAD) {
+				loadStatusP1 = LoadStatus.COMPLETE;
+				loadStatusP2 = LoadStatus.COMPLETE;
 
-				// SET UP THE LEVEL IN SINGLEPLAYER MODE
+				controlHandler.singleplayer = true;
+
+				waitingCanvasObject = GameObject.Find ("Waiting Canvas");
+				if (!waitingCanvasObject)
+					Debug.LogWarning ("No Waiting Canvas could be found in this scene... (no loading screen??)");
+				waitingCanvasObject.transform.FindChild ("Main Text").GetComponent<Text> ().text = "Loading...";
+
+				// Reset both player load statuses to NULL as we are no longer trying to load the scene
+				loadStatusP1 = LoadStatus.NULL;
+				loadStatusP2 = LoadStatus.NULL;
+				// Then start setting up the singeplayer level!
+				SetupLevel_Singleplayer ();
+
+
+
+
 
 			} else {
 				Debug.LogWarning ("Level load was not expected - there may be an error. Proceed with caution!");
@@ -286,6 +351,8 @@ public class GameController : PunBehaviour {
 
 		} else {
 			Debug.Log ("Setting up the level for Multiplayer...");
+
+			controlHandler.singleplayer = false;
 
 			// Check we have initialised our local player number
 			if (localPlayerNumber == 0) {
@@ -326,6 +393,10 @@ public class GameController : PunBehaviour {
 	
 
 	public void QuitPhotonRoom () {
+		Debug.Log ("Quitting the Photon room...");
+		if (SceneManager.GetActiveScene () != SceneManager.GetSceneByName ("main")) {
+			SceneManager.LoadScene ("main");
+		}
 		PhotonNetwork.LeaveRoom ();
 		menuController.GoToMenu (menuController.canvasMain);
 	}
@@ -382,7 +453,7 @@ public class GameController : PunBehaviour {
 			return;
 		}
 
-		// If we are the host, and both players have been setup to begin loading the level, then begin the level load...
+		// If we are the host, and both players have just been setup to begin loading the level, then begin the god damned level load! Let's get this show on the road!
 		if (localPlayerNumber == 1 && loadStatusP1 == LoadStatus.AWAITING_LOAD && loadStatusP2 == LoadStatus.AWAITING_LOAD) {
 			// Then start loading up level (only run on the host client - player 1)
 			LoadPhotonLevel (levelName);

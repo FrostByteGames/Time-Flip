@@ -7,7 +7,7 @@ public class CameraController : MonoBehaviour {
 	public float dampTime = 0.15f;
 	private Vector3 velocity = Vector3.zero;
 	public Transform target;
-	public Vector3 offset;
+	public Vector3 offset = new Vector3(0f, -4f, 0f);
 
 	private VignetteAndChromaticAberration effect_vignette;
 	private Twirl effect_twirl;
@@ -15,15 +15,24 @@ public class CameraController : MonoBehaviour {
 
 	float shakeStartTime = 0;
 
-	void Start () {
+	void Awake () {
 		// Hook into the Control Handler to update the reference to the camera to this camera so that when...
 		// ...the control handler issues a new player control, it can also make the camera look at that player.
 		FindObjectOfType<ControlHandler> ().camera = GetComponent<Camera> ();
 		FindObjectOfType<ControlHandler> ().cameraController = this;
 
 		effect_vignette = GetComponent<VignetteAndChromaticAberration> ();
+		if (!effect_vignette)
+			Debug.LogWarning ("No Vignette and Chromatic Aberration effect found on the camera!");
+
 		effect_twirl = GetComponent<Twirl> ();
+		if (!effect_twirl)
+			Debug.LogWarning ("No Twirl effect found on the camera!");
+
 		effect_saturation = GetComponent<ColorCorrectionCurves> ();
+		if (!effect_saturation)
+			Debug.LogWarning ("No Saturation effect found on the camera!");
+
 	}
 	
 

@@ -20,13 +20,14 @@ public class PhotonNetworkHandler : PunBehaviour {
 	}
 
 	public ConnectionState multiplayerConnectionState = ConnectionState.NOT_CONNECTED;
+	public bool? MultiplayerMode = null;
 
 	private MenuController menuController;
 	private ControlHandler controlHandler;
 
 	private GameObject player1;
 	private GameObject player2;
-
+	
 	private Text connectionStateText;
 	private Text pingText;
 
@@ -96,7 +97,7 @@ public class PhotonNetworkHandler : PunBehaviour {
 
 
 	void OnGUI () {
-		if (multiplayerConnectionState != ConnectionState.CONNECTED_INGAME) {
+		if (SceneManager.GetActiveScene () == SceneManager.GetSceneByName ("menu") && multiplayerConnectionState != ConnectionState.CONNECTED_INGAME) {
 			/*
             GUILayout.BeginHorizontal ();
 				GUILayout.Label (PhotonNetwork.connectionStateDetailed.ToString ());
@@ -210,7 +211,7 @@ public class PhotonNetworkHandler : PunBehaviour {
 	}*/
 
 
-	
+/*
 	[PunRPC]
 	public void InitLocalPlayer (int player1viewid, int player2viewid) {
 		PhotonView player1view = PhotonView.Find (player1viewid);
@@ -233,7 +234,7 @@ public class PhotonNetworkHandler : PunBehaviour {
 
 			player2view.GetComponent<PlayerController> ().enabled = false;
 			player2view.GetComponent<Rigidbody2D> ().isKinematic = true;
-			player2view.GetComponent<BoxCollider2D> ().enabled = false;
+			player2view.GetComponent<CircleCollider2D> ().enabled = false;
 
 		} else {
 			// Then this client is player 2
@@ -250,7 +251,7 @@ public class PhotonNetworkHandler : PunBehaviour {
 
 			player1view.GetComponent<PlayerController> ().enabled = false;
 			player1view.GetComponent<Rigidbody2D> ().isKinematic = true;
-			player1view.GetComponent<BoxCollider2D> ().enabled = false;
+			player1view.GetComponent<CircleCollider2D> ().enabled = false;
 		}
 
 
@@ -261,8 +262,10 @@ public class PhotonNetworkHandler : PunBehaviour {
 		controlHandler.inControlText = GameObject.Find ("In Control Text").GetComponent<Text> ();
 		controlHandler.UnpauseControl ();
 		controlHandler.SetControl (ControlHandler.Player.One);
+		
+		
 	}
-
+*/
 
 	public void JoinGame (RoomInfo roomInfo) {
 		PhotonNetwork.LoadLevel (roomInfo.customProperties["level"] as string);
@@ -291,7 +294,11 @@ public class PhotonNetworkHandler : PunBehaviour {
 	}
 
 	public void ExitRoom() {
-		PhotonNetwork.LeaveRoom ();
+		if (MultiplayerMode == true) {
+			PhotonNetwork.LeaveRoom ();
+		}
+		Destroy (GameController.Instance.gameObject);
+		Destroy (ControlHandler.Instance.gameObject);
 		SceneManager.LoadScene ("menu");
 	}
 

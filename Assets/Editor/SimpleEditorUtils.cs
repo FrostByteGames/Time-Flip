@@ -18,6 +18,11 @@ public static class SimpleEditorUtils {
 		canvases = Resources.FindObjectsOfTypeAll<Canvas> ();
 	}
 
+	private static void ReloadCanvases () {
+		canvases = Resources.FindObjectsOfTypeAll<Canvas> ();
+	}
+
+
 	[MenuItem ("Tools/Play From menu.unity %0")]
     public static void PlayFromPrelaunchScene () {
         if (EditorApplication.isPlaying == true) {
